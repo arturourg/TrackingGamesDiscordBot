@@ -1,0 +1,130 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum Platform {
+  steam
+  psn
+}
+
+enum SyncStatus {
+  pending
+  running
+  success
+  failed
+}
+
+model User {
+  id                String              @id @default(cuid())
+  discordUserId     String              @unique
+  createdAt         DateTime            @default(now())
+  accounts          Account[]
+  userGames         UserGame[]
+  userAchievements  UserAchievement[]
+  syncJobs          SyncJob[]
+}
+
+model Account {
+  id                    String   @id @default(cuid())
+  userId                String
+  user                  User     @relation(fields: [userId], references: [id])
+  platform              Platform
+  externalId            String
+  displayName           String
+  tokensEncrypted       Bytes
+  linkedAt              DateTime @default(now())
+  accessTokenExpiresAt  DateTime?
+  refreshTokenEncrypted Bytes?
+
+  @@unique([userId, platform])
+  @@index([platform, externalId])
+}
+
+model Game {
+  id                String        @id @default(cuid())
+  platform          Platform
+  appId             String
+  name              String
+  iconUrl           String?
+  totalAchievements Int
+  lastSyncedAt      DateTime?
+  userGames         UserGame[]
+  achievements      Achievement[]
+
+  @@unique([platform, appId])
+  @@index([platform])
+}
+
+model UserGame {
+  id                 String   @id @default(cuid())
+  userId             String
+  user               User     @relation(fields: [userId], references: [id])
+  gameId             String
+  game               Game     @relation(fields: [gameId], references: [id])
+  lastPlayedAt       DateTime?
+  hoursPlayed        Float    @default(0)
+  completionPct      Float    @default(0)
+  earnedAchievements Int      @default(0)
+  status             String   @default("pending")
+  updatedAt          DateTime @updatedAt
+
+  @@index([userId, completionPct])
+  @@index([userId, status])
+}
+
+model Achievement {
+  id          String   @id @default(cuid())
+  gameId      String
+  game        Game     @relation(fields: [gameId], references: [id])
+  extKey      String
+  name        String
+  description String?
+  rarity      Float?
+  isHidden    Boolean  @default(false)
+  iconUrl     String?
+
+  @@unique([gameId, extKey])
+  @@index([gameId])
+}
+
+model UserAchievement {
+  id             String   @id @default(cuid())
+  userId         String
+  user           User     @relation(fields: [userId], references: [id])
+  achievementId  String
+  achievement    Achievement @relation(fields: [achievementId], references: [id])
+  earned         Boolean  @default(false)
+  earnedAt       DateTime?
+
+  @@unique([userId, achievementId])
+  @@index([userId])
+}
+
+model SyncJob {
+  id         String     @id @default(cuid())
+  userId     String
+  user       User       @relation(fields: [userId], references: [id])
+  platform   Platform
+  status     SyncStatus @default(pending)
+  startedAt  DateTime?
+  finishedAt DateTime?
+  error      String?
+  createdAt  DateTime   @default(now())
+
+  @@index([platform, status])
+}
+
+model GuildSetting {
+  id         String   @id @default(cuid())
+  guildId    String   @unique
+  locale     String   @default("es-CL")
+  timezone   String   @default("America/Santiago")
+  privacyMode Boolean @default(false)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}
